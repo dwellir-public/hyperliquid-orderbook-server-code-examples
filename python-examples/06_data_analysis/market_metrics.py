@@ -154,8 +154,10 @@ async def main():
     print("📊 Calculating market metrics...\n")
 
     analyzer = MarketAnalyzer(history_size=100)
-    message_count = 0
-    display_interval = 10  # Display stats every 10 messages
+    trade_count = 0
+    display_interval = 5  # Display stats every 5 trades
+
+    print("💭 Waiting for market data...\n")
 
     try:
         async for message in websocket:
@@ -172,6 +174,15 @@ async def main():
                             trade["sz"],
                             trade["side"]
                         )
+                        trade_count += 1
+
+                        # Show trade
+                        side_icon = "🟢" if trade["side"] == "B" else "🔴"
+                        print(f"{side_icon} Trade: {trade['side']} {trade['sz']} @ ${trade['px']}")
+
+                        # Display stats periodically
+                        if trade_count % display_interval == 0:
+                            analyzer.display_stats("BTC")
 
             elif channel == "l2Book":
                 # Track spread
@@ -181,11 +192,6 @@ async def main():
                     ask = float(levels[1][0]['px'])
                     spread = ask - bid
                     analyzer.add_spread(spread)
-
-            # Display stats periodically
-            message_count += 1
-            if message_count % display_interval == 0:
-                analyzer.display_stats("BTC")
 
     except KeyboardInterrupt:
         print("\nStopping...")

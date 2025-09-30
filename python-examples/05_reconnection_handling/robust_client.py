@@ -98,11 +98,13 @@ class RobustWSClient:
 
     def handle_trade(self, data):
         """Handle trade messages"""
-        coin = data["data"]["coin"]
-        for trade in data["data"]["trades"]:
-            side_icon = "🟢" if trade["side"] == "B" else "🔴"
-            timestamp = datetime.now().strftime('%H:%M:%S')
-            print(f"{side_icon} {coin}: {trade['side']} {trade['sz']} @ ${trade['px']} | {timestamp}")
+        # trades data is a list of trade objects
+        for trade_data in data["data"]:
+            coin = trade_data["coin"]
+            for trade in trade_data["trades"]:
+                side_icon = "🟢" if trade["side"] == "B" else "🔴"
+                timestamp = datetime.now().strftime('%H:%M:%S')
+                print(f"{side_icon} {coin}: {trade['side']} {trade['sz']} @ ${trade['px']} | {timestamp}")
 
     def handle_l2_book(self, data):
         """Handle L2 book messages"""

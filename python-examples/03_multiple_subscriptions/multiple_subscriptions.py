@@ -16,19 +16,20 @@ load_dotenv()
 
 def handle_trade(data):
     """Handle incoming trade data"""
-    coin = data["data"]["coin"]
-    trades = data["data"]["trades"]
+    # trades data is a list of trade objects
+    for trade_data in data["data"]:
+        coin = trade_data["coin"]
 
-    for trade in trades:
-        side = trade["side"]
-        price = trade["px"]
-        size = trade["sz"]
-        timestamp = datetime.fromtimestamp(trade["time"] / 1000)
+        for trade in trade_data["trades"]:
+            side = trade["side"]
+            price = trade["px"]
+            size = trade["sz"]
+            timestamp = datetime.fromtimestamp(trade["time"] / 1000)
 
-        # Color code buy/sell
-        side_icon = "🟢" if side == "B" else "🔴"
+            # Color code buy/sell
+            side_icon = "🟢" if side == "B" else "🔴"
 
-        print(f"{side_icon} {coin} Trade: {side} {size} @ ${price} | {timestamp.strftime('%H:%M:%S')}")
+            print(f"{side_icon} {coin} Trade: {side} {size} @ ${price} | {timestamp.strftime('%H:%M:%S')}")
 
 
 def handle_l2_book(data):

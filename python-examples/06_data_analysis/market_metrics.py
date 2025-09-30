@@ -163,13 +163,14 @@ async def main():
             channel = data.get("channel")
 
             if channel == "trades":
-                # Process trades
-                for trade in data["data"]["trades"]:
-                    analyzer.add_trade(
-                        trade["px"],
-                        trade["sz"],
-                        trade["side"]
-                    )
+                # Process trades - data is a list of trade objects
+                for trade_data in data["data"]:
+                    for trade in trade_data["trades"]:
+                        analyzer.add_trade(
+                            trade["px"],
+                            trade["sz"],
+                            trade["side"]
+                        )
 
             elif channel == "l2Book":
                 # Track spread

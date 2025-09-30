@@ -166,23 +166,21 @@ async def main():
 
             if channel == "trades":
                 # Process trades - data is a list of trade objects
-                for trade_data in data["data"]:
-                    trades_list = trade_data.get("trades", [])
-                    for trade in trades_list:
-                        analyzer.add_trade(
-                            trade["px"],
-                            trade["sz"],
-                            trade["side"]
-                        )
-                        trade_count += 1
+                for trade in data["data"]:
+                    analyzer.add_trade(
+                        trade["px"],
+                        trade["sz"],
+                        trade["side"]
+                    )
+                    trade_count += 1
 
-                        # Show trade
-                        side_icon = "🟢" if trade["side"] == "B" else "🔴"
-                        print(f"{side_icon} Trade: {trade['side']} {trade['sz']} @ ${trade['px']}")
+                    # Show trade
+                    side_icon = "🟢" if trade["side"] == "B" else "🔴"
+                    print(f"{side_icon} Trade: {trade['side']} {trade['sz']} @ ${trade['px']}")
 
-                        # Display stats periodically
-                        if trade_count % display_interval == 0:
-                            analyzer.display_stats("BTC")
+                    # Display stats periodically
+                    if trade_count % display_interval == 0:
+                        analyzer.display_stats("BTC")
 
             elif channel == "l2Book":
                 # Track spread

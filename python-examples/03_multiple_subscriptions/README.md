@@ -35,9 +35,14 @@ python multiple_subscriptions.py
 ```
 
 You'll see:
-- BTC trade updates
-- ETH trade updates
-- SOL trade updates
-- All streaming simultaneously in real-time
+- BTC trade updates (when trades occur)
+- ETH trade updates (when trades occur)
+- SOL L2 order book updates (frequent, real-time)
+- All streaming simultaneously
 
-**Note**: Trades happen less frequently than order book updates, so you may need to wait a few seconds between messages.
+This demonstrates:
+- **Mixed data types**: Trades (BTC, ETH) + Order book (SOL)
+- **Different update frequencies**: Trades are sporadic, L2 updates constantly
+- **Message routing**: Handling multiple channels in one connection
+
+**Note**: Trades happen every few seconds to minutes. The SOL order book provides continuous updates so you see immediate activity.

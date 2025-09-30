@@ -16,21 +16,18 @@ load_dotenv()
 
 def handle_trade(data):
     """Handle incoming trade data"""
-    # trades data is a list of trade objects with coin and trades
-    for trade_data in data["data"]:
-        coin = trade_data.get("coin")
-        trades_list = trade_data.get("trades", [])
+    # trades data is a list of trade objects
+    for trade in data["data"]:
+        coin = trade.get("coin")
+        side = trade["side"]
+        price = trade["px"]
+        size = trade["sz"]
+        timestamp = datetime.fromtimestamp(trade["time"] / 1000)
 
-        for trade in trades_list:
-            side = trade["side"]
-            price = trade["px"]
-            size = trade["sz"]
-            timestamp = datetime.fromtimestamp(trade["time"] / 1000)
+        # Color code buy/sell
+        side_icon = "🟢" if side == "B" else "🔴"
 
-            # Color code buy/sell
-            side_icon = "🟢" if side == "B" else "🔴"
-
-            print(f"{side_icon} {coin} Trade: {side} {size} @ ${price} | {timestamp.strftime('%H:%M:%S')}")
+        print(f"{side_icon} {coin} Trade: {side} {size} @ ${price} | {timestamp.strftime('%H:%M:%S')}")
 
 
 def handle_l2_book(data):
@@ -98,19 +95,22 @@ async def main():
     await websocket.send(json.dumps(eth_trades))
     print("✓ Subscribed to ETH trades")
 
-    # Subscribe to SOL trades
-    sol_trades = {
+    # Subscribe to SOL L2 order book (for frequent updates)
+    sol_l2 = {
         "method": "subscribe",
         "subscription": {
-            "type": "trades",
-            "coin": "SOL"
+            "type": "l2Book",
+            "coin": "SOL",
+            "nLevels": 3,
+            "nSigFigs": 4
         }
     }
-    await websocket.send(json.dumps(sol_trades))
-    print("✓ Subscribed to SOL trades")
+    await websocket.send(json.dumps(sol_l2))
+    print("✓ Subscribed to SOL L2 book")
 
     print("\n" + "="*60)
     print("Watching multiple feeds...")
+    print("📊 SOL updates frequently | 🟢🔴 BTC/ETH trades when they occur")
     print("="*60 + "\n")
 
     try:

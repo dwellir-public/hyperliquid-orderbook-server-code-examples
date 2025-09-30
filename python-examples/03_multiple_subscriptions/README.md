@@ -37,5 +37,7 @@ python multiple_subscriptions.py
 You'll see:
 - BTC trade updates
 - ETH trade updates
-- SOL order book updates
+- SOL trade updates
 - All streaming simultaneously in real-time
+
+**Note**: Trades happen less frequently than order book updates, so you may need to wait a few seconds between messages.

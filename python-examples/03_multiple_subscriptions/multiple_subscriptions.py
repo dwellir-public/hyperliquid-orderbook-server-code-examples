@@ -98,18 +98,16 @@ async def main():
     await websocket.send(json.dumps(eth_trades))
     print("✓ Subscribed to ETH trades")
 
-    # Subscribe to SOL L2 order book
-    sol_l2 = {
+    # Subscribe to SOL trades
+    sol_trades = {
         "method": "subscribe",
         "subscription": {
-            "type": "l2Book",
-            "coin": "SOL",
-            "nLevels": 5,
-            "nSigFigs": 4
+            "type": "trades",
+            "coin": "SOL"
         }
     }
-    await websocket.send(json.dumps(sol_l2))
-    print("✓ Subscribed to SOL L2 book")
+    await websocket.send(json.dumps(sol_trades))
+    print("✓ Subscribed to SOL trades")
 
     print("\n" + "="*60)
     print("Watching multiple feeds...")

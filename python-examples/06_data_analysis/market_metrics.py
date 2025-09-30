@@ -165,7 +165,8 @@ async def main():
             if channel == "trades":
                 # Process trades - data is a list of trade objects
                 for trade_data in data["data"]:
-                    for trade in trade_data["trades"]:
+                    trades_list = trade_data.get("trades", [])
+                    for trade in trades_list:
                         analyzer.add_trade(
                             trade["px"],
                             trade["sz"],

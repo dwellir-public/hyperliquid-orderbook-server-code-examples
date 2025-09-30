@@ -116,7 +116,8 @@ async def main():
         return
 
     print(f"Connecting to {ws_url}...")
-    websocket = await websockets.connect(ws_url)
+    # L4 data can be large, increase max message size to 10MB
+    websocket = await websockets.connect(ws_url, max_size=10 * 1024 * 1024)
     print("Connected!\n")
 
     # Subscribe to ETH L4 order book

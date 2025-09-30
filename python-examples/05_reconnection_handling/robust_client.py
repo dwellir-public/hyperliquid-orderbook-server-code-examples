@@ -100,8 +100,9 @@ class RobustWSClient:
         """Handle trade messages"""
         # trades data is a list of trade objects
         for trade_data in data["data"]:
-            coin = trade_data["coin"]
-            for trade in trade_data["trades"]:
+            coin = trade_data.get("coin")
+            trades_list = trade_data.get("trades", [])
+            for trade in trades_list:
                 side_icon = "🟢" if trade["side"] == "B" else "🔴"
                 timestamp = datetime.now().strftime('%H:%M:%S')
                 print(f"{side_icon} {coin}: {trade['side']} {trade['sz']} @ ${trade['px']} | {timestamp}")

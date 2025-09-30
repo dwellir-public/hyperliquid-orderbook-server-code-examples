@@ -16,11 +16,12 @@ load_dotenv()
 
 def handle_trade(data):
     """Handle incoming trade data"""
-    # trades data is a list of trade objects
+    # trades data is a list of trade objects with coin and trades
     for trade_data in data["data"]:
-        coin = trade_data["coin"]
+        coin = trade_data.get("coin")
+        trades_list = trade_data.get("trades", [])
 
-        for trade in trade_data["trades"]:
+        for trade in trades_list:
             side = trade["side"]
             price = trade["px"]
             size = trade["sz"]
@@ -57,6 +58,9 @@ def route_message(data):
         handle_trade(data)
     elif channel == "l2Book":
         handle_l2_book(data)
+    elif channel == "subscriptionResponse":
+        # Ignore subscription confirmation messages
+        pass
     else:
         print(f"Unknown channel: {channel}")
 

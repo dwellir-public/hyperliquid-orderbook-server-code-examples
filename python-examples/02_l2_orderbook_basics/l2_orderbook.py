@@ -12,25 +12,22 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Global configuration
+COIN = "ETH"          # Which coin to track
+N_LEVELS = 100         # Number of price levels to display (1-100)
+N_SIG_FIGS = 5        # Price precision/aggregation (2-5)
+
 
 def display_orderbook(data):
-    """Display the order book in a simple format"""
+    """Display the order book in a trading terminal style"""
     if data.get("channel") != "l2Book":
         return
 
     coin = data["data"]["coin"]
     levels = data["data"]["levels"]
 
-    print(f"\n{'='*50}")
-    print(f"📊 {coin} Order Book")
-    print(f"{'='*50}")
-
-    # Display asks (sellers) - reverse order so highest price is on top
-    print("\n🔴 ASKS (Sellers)")
-    print(f"{'Price':<15} {'Size':<15} {'Orders':<10}")
-    print("-" * 50)
-    for ask in reversed(levels[1][:5]):  # Show top 5 asks
-        print(f"{ask['px']:<15} {ask['sz']:<15} {ask['n']:<10}")
+    # Clear screen for smooth updates (optional - comment out if you want history)
+    print("\033[2J\033[H", end="")
 
     # Calculate spread
     best_bid = float(levels[0][0]['px']) if levels[0] else 0
@@ -38,16 +35,44 @@ def display_orderbook(data):
     spread = best_ask - best_bid
     spread_pct = (spread / best_bid * 100) if best_bid > 0 else 0
 
-    print(f"\n{'─'*50}")
-    print(f"💰 Spread: ${spread:.2f} ({spread_pct:.3f}%)")
-    print(f"{'─'*50}\n")
+    print(f"\n{'='*100}")
+    print(f"📊 {coin} Order Book - Live Market Depth".center(100))
+    print(f"{'='*100}\n")
 
-    # Display bids (buyers)
-    print("🟢 BIDS (Buyers)")
-    print(f"{'Price':<15} {'Size':<15} {'Orders':<10}")
-    print("-" * 50)
-    for bid in levels[0][:5]:  # Show top 5 bids
-        print(f"{bid['px']:<15} {bid['sz']:<15} {bid['n']:<10}")
+    # Header for side-by-side display
+    print(f"{'BIDS (Buyers)':^40} │ {'ASKS (Sellers)':^40}")
+    print(f"{'Price':<14} {'Size':<14} {'Orders':<8} │ {'Price':<14} {'Size':<14} {'Orders':<8}")
+    print(f"{'─'*40}─┼─{'─'*40}")
+
+    # Get N_LEVELS for each side
+    bids = levels[0][:N_LEVELS] if levels[0] else []
+    asks = levels[1][:N_LEVELS] if levels[1] else []
+
+    # Display rows side by side (asks reversed so best prices are in the middle)
+    max_rows = max(len(bids), len(asks))
+
+    for i in range(max_rows):
+        # Bid side (left)
+        if i < len(bids):
+            bid = bids[i]
+            bid_line = f"🟢 {bid['px']:<12} {bid['sz']:<14} {bid['n']:<8}"
+        else:
+            bid_line = " " * 40
+
+        # Ask side (right) - reverse order so best ask is at top
+        ask_idx = len(asks) - 1 - i
+        if ask_idx >= 0:
+            ask = asks[ask_idx]
+            ask_line = f"🔴 {ask['px']:<12} {ask['sz']:<14} {ask['n']:<8}"
+        else:
+            ask_line = " " * 40
+
+        print(f"{bid_line} │ {ask_line}")
+
+    # Spread display
+    print(f"\n{'─'*100}")
+    print(f"💰 Best Bid: ${best_bid:,.2f}  |  Best Ask: ${best_ask:,.2f}  |  Spread: ${spread:.4f} ({spread_pct:.4f}%)".center(100))
+    print(f"{'─'*100}\n")
 
 
 async def main():
@@ -61,20 +86,18 @@ async def main():
     websocket = await websockets.connect(ws_url)
     print("Connected!\n")
 
-    # Subscribe to ETH L2 order book
-    # nLevels: how many price levels (default 20, max 100)
-    # nSigFigs: price aggregation (2-5, more = more precise)
+    # Subscribe to L2 order book using global configuration
     subscribe_message = {
         "method": "subscribe",
         "subscription": {
             "type": "l2Book",
-            "coin": "ETH",
-            "nLevels": 10,
-            "nSigFigs": 5
+            "coin": COIN,
+            "nLevels": N_LEVELS,
+            "nSigFigs": N_SIG_FIGS
         }
     }
     await websocket.send(json.dumps(subscribe_message))
-    print("📈 Subscribed to ETH L2 Order Book")
+    print(f"📈 Subscribed to {COIN} L2 Order Book ({N_LEVELS} levels, {N_SIG_FIGS} sig figs)")
     print("Watching for updates...\n")
 
     try:

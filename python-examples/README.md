@@ -63,6 +63,16 @@ Calculate real-time metrics:
 - Price change percentages
 - Rolling window analysis
 
+### [07 - L4 Order Book](./07_l4_orderbook/)
+**Concepts**: Individual order visibility, market microstructure, order IDs and user addresses
+
+Explore the most detailed market data:
+- Individual order tracking with unique order IDs
+- User addresses for each order
+- Full market microstructure visibility
+- Order-level granularity (vs aggregated L2 levels)
+- Handling large message sizes for detailed data
+
 ## 🚀 Getting Started
 
 ### Prerequisites

@@ -30,6 +30,8 @@ class L4OrderBook:
         self.coin = None
         self.height = None
         self.last_update = None
+        # Track changes for display
+        self.last_changes = {"added": [], "removed": [], "modified": []}
 
     def process_snapshot(self, snapshot):
         """Process a full snapshot"""
@@ -74,76 +76,77 @@ class L4OrderBook:
                 self.asks[price].append(oid)
 
     def process_update(self, update):
-        """Process incremental updates"""
+        """Process incremental updates from book_diffs"""
         self.height = update.get("height", self.height)
         self.last_update = datetime.now()
 
-        # Updates structure: {"levels": [[bid_updates], [ask_updates]]}
-        levels = update.get("levels", [[], []])
-        bid_updates = levels[0] if len(levels) > 0 else []
-        ask_updates = levels[1] if len(levels) > 1 else []
+        # Clear previous changes
+        self.last_changes = {"added": [], "removed": [], "modified": []}
 
-        # Process bid updates
-        for bid in bid_updates:
-            oid = bid.get("oid")
+        # Build a map of oid -> order info from order_statuses to get the side
+        order_info_map = {}
+        for order_status in update.get("order_statuses", []):
+            order = order_status.get("order", {})
+            oid = order.get("oid")
+            if oid:
+                order_info_map[oid] = order
+
+        # Process book_diffs - this is where the actual orderbook changes are
+        for diff in update.get("book_diffs", []):
+            oid = diff.get("oid")
+            px = diff.get("px")
+            user = diff.get("user")
+            raw_diff = diff.get("raw_book_diff")
+
             if not oid:
                 continue
 
-            # If size is "0" or empty, remove the order
-            size = bid.get("sz", "0")
-            if size == "0" or size == "":
-                self._remove_order(oid)
-            else:
-                # Check if this is an update to an existing order
+            # Handle removal
+            if raw_diff == "remove":
                 if oid in self.orders:
-                    # Remove from old price level
-                    old_price = self.orders[oid]["limitPx"]
-                    if old_price in self.bids and oid in self.bids[old_price]:
-                        self.bids[old_price].remove(oid)
-                        if not self.bids[old_price]:
-                            del self.bids[old_price]
+                    order_info = self.orders[oid].copy()
+                    order_info["oid"] = oid
+                    self.last_changes["removed"].append(order_info)
+                    self._remove_order(oid)
 
-                # Add or update order
-                price = bid.get("limitPx")
+            # Handle new order
+            elif isinstance(raw_diff, dict) and "new" in raw_diff:
+                sz = raw_diff["new"]["sz"]
+
+                # Get side from order_statuses
+                side = None
+                if oid in order_info_map:
+                    side_code = order_info_map[oid].get("side")
+                    side = "bid" if side_code == "B" else "ask" if side_code == "A" else None
+
+                if not side:
+                    # Fallback: Can't determine side, skip this update
+                    continue
+
+                # Add order to orderbook
                 self.orders[oid] = {
-                    "user": bid.get("user"),
-                    "limitPx": price,
-                    "sz": size,
-                    "side": "bid"
+                    "user": user,
+                    "limitPx": px,
+                    "sz": sz,
+                    "side": side
                 }
-                if oid not in self.bids[price]:
-                    self.bids[price].append(oid)
 
-        # Process ask updates
-        for ask in ask_updates:
-            oid = ask.get("oid")
-            if not oid:
-                continue
+                # Add to appropriate price level
+                if side == "bid":
+                    if oid not in self.bids[px]:
+                        self.bids[px].append(oid)
+                else:  # ask
+                    if oid not in self.asks[px]:
+                        self.asks[px].append(oid)
 
-            # If size is "0" or empty, remove the order
-            size = ask.get("sz", "0")
-            if size == "0" or size == "":
-                self._remove_order(oid)
-            else:
-                # Check if this is an update to an existing order
-                if oid in self.orders:
-                    # Remove from old price level
-                    old_price = self.orders[oid]["limitPx"]
-                    if old_price in self.asks and oid in self.asks[old_price]:
-                        self.asks[old_price].remove(oid)
-                        if not self.asks[old_price]:
-                            del self.asks[old_price]
-
-                # Add or update order
-                price = ask.get("limitPx")
-                self.orders[oid] = {
-                    "user": ask.get("user"),
-                    "limitPx": price,
-                    "sz": size,
-                    "side": "ask"
-                }
-                if oid not in self.asks[price]:
-                    self.asks[price].append(oid)
+                # Track change for display
+                self.last_changes["added"].append({
+                    "oid": oid,
+                    "user": user,
+                    "limitPx": px,
+                    "sz": sz,
+                    "side": side
+                })
 
     def _remove_order(self, oid):
         """Remove an order from the book"""
@@ -169,10 +172,10 @@ class L4OrderBook:
         # Remove from orders
         del self.orders[oid]
 
-    def get_sorted_levels(self, max_levels=100):
-        """Get sorted bid/ask levels for display"""
+    def get_sorted_levels(self, max_orders=100):
+        """Get sorted bid/ask levels for display - returns up to max_orders on each side"""
         # Sort bids descending (highest first)
-        sorted_bid_prices = sorted(self.bids.keys(), key=float, reverse=True)[:max_levels]
+        sorted_bid_prices = sorted(self.bids.keys(), key=float, reverse=True)
         bid_levels = []
         for price in sorted_bid_prices:
             for oid in self.bids[price]:
@@ -184,9 +187,13 @@ class L4OrderBook:
                         "sz": order["sz"],
                         "user": order["user"]
                     })
+                    if len(bid_levels) >= max_orders:
+                        break
+            if len(bid_levels) >= max_orders:
+                break
 
         # Sort asks ascending (lowest first)
-        sorted_ask_prices = sorted(self.asks.keys(), key=float)[:max_levels]
+        sorted_ask_prices = sorted(self.asks.keys(), key=float)
         ask_levels = []
         for price in sorted_ask_prices:
             for oid in self.asks[price]:
@@ -198,60 +205,65 @@ class L4OrderBook:
                         "sz": order["sz"],
                         "user": order["user"]
                     })
+                    if len(ask_levels) >= max_orders:
+                        break
+            if len(ask_levels) >= max_orders:
+                break
 
         return bid_levels, ask_levels
 
 
-def display_orderbook(orderbook, max_display=100):
-    """Display the current orderbook state"""
-    bids, asks = orderbook.get_sorted_levels(max_levels=max_display)
+def display_changes(orderbook):
+    """Display only the changes that occurred in the last update"""
+    changes = orderbook.last_changes
 
-    # Clear screen for cleaner updates
-    print("\033[2J\033[H")  # ANSI escape codes to clear screen
+    total_changes = len(changes["added"]) + len(changes["modified"]) + len(changes["removed"])
 
-    print(f"{'='*90}")
-    print(f"📋 {orderbook.coin} L4 Order Book (Height: {orderbook.height}) - Updated: {orderbook.last_update.strftime('%H:%M:%S.%f')[:-3]}")
-    print(f"📊 Total Orders: {len(orderbook.orders)} | Bid Levels: {len(orderbook.bids)} | Ask Levels: {len(orderbook.asks)}")
-    print(f"{'='*90}")
+    if total_changes == 0:
+        return  # Don't print anything if no changes
 
-    # Display asks (sellers) - reverse order so highest price is on top
-    print(f"\n🔴 ASKS (Individual Sell Orders) - Showing top {min(len(asks), max_display)}")
-    print(f"{'Price':<12} {'Size':<12} {'Order ID':<20} {'User':<20}")
-    print("-" * 90)
+    print(f"\n{'='*100}")
+    print(f"📋 {orderbook.coin} L4 Updates (Height: {orderbook.height}) - {orderbook.last_update.strftime('%H:%M:%S.%f')[:-3]}")
+    print(f"📊 Total Orders: {len(orderbook.orders)} | Changes: ➕{len(changes['added'])} ✏️{len(changes['modified'])} ❌{len(changes['removed'])}")
+    print(f"{'='*100}")
 
-    # Show asks reversed (highest to lowest)
-    for ask in reversed(asks[:max_display]):
-        user_addr = ask.get("user", "unknown")[:12] + "..."
-        order_id = str(ask.get("oid", ""))[:18]
-        price = ask.get("limitPx", "0")
-        size = ask.get("sz", "0")
-        print(f"{price:<12} {size:<12} {order_id:<20} {user_addr:<20}")
+    # Display added orders
+    if changes["added"]:
+        print(f"\n➕ NEW ORDERS ({len(changes['added'])})")
+        print(f"{'Side':<6} {'Price':<12} {'Size':<12} {'Order ID':<20} {'User':<20}")
+        print("-" * 100)
+        for order in changes["added"][:20]:  # Show up to 20
+            side_emoji = "🔴" if order["side"] == "ask" else "🟢"
+            side_text = "ASK" if order["side"] == "ask" else "BID"
+            user_addr = order.get("user", "unknown")[:12] + "..."
+            order_id = str(order.get("oid", ""))[:18]
+            print(f"{side_emoji} {side_text:<4} {order['limitPx']:<12} {order['sz']:<12} {order_id:<20} {user_addr:<20}")
 
-    # Calculate spread
-    if bids and asks:
-        best_bid = float(bids[0].get('limitPx', 0))
-        best_ask = float(asks[0].get('limitPx', 0))
-        spread = best_ask - best_bid
-        spread_pct = (spread / best_bid * 100) if best_bid > 0 else 0
+    # Display modified orders
+    if changes["modified"]:
+        print(f"\n✏️  MODIFIED ORDERS ({len(changes['modified'])})")
+        print(f"{'Side':<6} {'Price':<12} {'Size':<12} {'Order ID':<20} {'User':<20}")
+        print("-" * 100)
+        for order in changes["modified"][:20]:  # Show up to 20
+            side_emoji = "🔴" if order["side"] == "ask" else "🟢"
+            side_text = "ASK" if order["side"] == "ask" else "BID"
+            user_addr = order.get("user", "unknown")[:12] + "..."
+            order_id = str(order.get("oid", ""))[:18]
+            print(f"{side_emoji} {side_text:<4} {order['limitPx']:<12} {order['sz']:<12} {order_id:<20} {user_addr:<20}")
 
-        print(f"\n{'─'*90}")
-        print(f"💰 Spread: ${spread:.4f} ({spread_pct:.4f}%) | Best Bid: ${best_bid} | Best Ask: ${best_ask}")
-        print(f"{'─'*90}\n")
+    # Display removed orders
+    if changes["removed"]:
+        print(f"\n❌ REMOVED ORDERS ({len(changes['removed'])})")
+        print(f"{'Side':<6} {'Price':<12} {'Size':<12} {'Order ID':<20} {'User':<20}")
+        print("-" * 100)
+        for order in changes["removed"][:20]:  # Show up to 20
+            side_emoji = "🔴" if order["side"] == "ask" else "🟢"
+            side_text = "ASK" if order["side"] == "ask" else "BID"
+            user_addr = order.get("user", "unknown")[:12] + "..."
+            order_id = str(order.get("oid", ""))[:18]
+            print(f"{side_emoji} {side_text:<4} {order['limitPx']:<12} {order['sz']:<12} {order_id:<20} {user_addr:<20}")
 
-    # Display bids (buyers)
-    print(f"🟢 BIDS (Individual Buy Orders) - Showing top {min(len(bids), max_display)}")
-    print(f"{'Price':<12} {'Size':<12} {'Order ID':<20} {'User':<20}")
-    print("-" * 90)
-
-    # Show bids (highest to lowest)
-    for bid in bids[:max_display]:
-        user_addr = bid.get("user", "unknown")[:12] + "..."
-        order_id = str(bid.get("oid", ""))[:18]
-        price = bid.get("limitPx", "0")
-        size = bid.get("sz", "0")
-        print(f"{price:<12} {size:<12} {order_id:<20} {user_addr:<20}")
-
-    print(f"\n{'='*90}\n")
+    print(f"\n{'='*100}\n")
 
 
 async def main():
@@ -296,17 +308,16 @@ async def main():
             snapshot = data["data"].get("Snapshot")
             if snapshot:
                 orderbook.process_snapshot(snapshot)
-                display_orderbook(orderbook, max_display=100)
+                print(f"✅ Snapshot loaded: {len(orderbook.orders)} orders")
                 continue
 
-            # Process updates
+            # Process updates - Updates is a single dict with book_diffs
             updates = data["data"].get("Updates")
             if updates:
                 orderbook.process_update(updates)
                 update_count += 1
-
-                # Display every update (change to % 10 or % 5 if too frequent)
-                display_orderbook(orderbook, max_display=100)
+                # Display changes
+                display_changes(orderbook)
 
     except KeyboardInterrupt:
         print("\nStopping...")

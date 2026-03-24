@@ -52,7 +52,7 @@ export function OrderbookDisplay({ orderbook, title, maxDisplay = 100 }: Orderbo
       <div className="space-y-0.5 max-h-[600px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900">
         {Array.from({ length: maxRows }).map((_, i) => {
           const bid = displayBids[i];
-          const ask = displayAsks[maxRows - 1 - i];
+          const ask = displayAsks[i];
 
           return (
             <div key={i} className="flex justify-between text-xs">
